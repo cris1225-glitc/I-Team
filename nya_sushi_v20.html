@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>喵壽司 Nya Sushi v20.0</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #0e0e12; color: #f0f0f0;
+  font-family: "Microsoft JhengHei", "PingFang TC", sans-serif;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  min-height: 100vh; overflow: hidden;
+}
+#rotate-hint {
+  display: none; position: fixed; inset: 0; z-index: 9999;
+  background: #0d0d14; flex-direction: column;
+  align-items: center; justify-content: center;
+  color: #f0f0f0; font-size: 18px; text-align: center; gap: 16px;
+}
+#rotate-hint .icon { font-size: 52px; animation: rotHint 1.5s infinite; }
+@keyframes rotHint { 0%{transform:rotate(0)} 50%,100%{transform:rotate(90deg)} }
+#scale-wrap { transform-origin: top center; width: 1060px; }
+
+#game-wrap {
+  background: #17171d; border-radius: 24px; padding: 20px;
+  border: 1.5px solid #2a2a36; box-shadow: 0 30px 80px rgba(0,0,0,0.9);
+  position: relative;
+}
+#energy-bar-wrap {
+  position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  z-index: 10; pointer-events: none;
+}
+#energy-label { font-size: 11px; color: #bb88ff; letter-spacing: 1px; font-weight: bold; }
+#energy-track { width: 180px; height: 9px; background: #1a1a28; border-radius: 10px; border: 1px solid #3a2a55; overflow: hidden; }
+#energy-fill { height: 100%; border-radius: 10px; background: linear-gradient(90deg,#7733cc,#cc44ff,#ffaaff); transition: width 0.4s cubic-bezier(0.34,1.56,0.64,1); width: 0%; }
+#energy-pct { font-size: 10px; color: #aa77ee; }
+
+canvas { display: block; border-radius: 16px; border: 1px solid #222230; margin-top: 36px; }
+
+.workbench { display: flex; align-items: stretch; gap: 12px; margin-top: 14px; }
+.kitchen-box { background: #111118; border-radius: 14px; border: 1px solid #2a2a36; padding: 10px 12px; min-width: 230px; flex-shrink: 0; }
+.kitchen-title { font-size: 11px; color: #888; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+.queue-badge { background: #ff8833; color: #fff; font-size: 10px; font-weight: bold; padding: 2px 8px; border-radius: 20px; display: none; }
+.kitchen-slots { display: flex; gap: 8px; }
+.kslot { flex: 1; background: #1a1a24; border-radius: 10px; border: 1px solid #2e2e3e; padding: 8px 4px; text-align: center; min-height: 66px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.kslot.has-q { border-color: #ff8833; }
+.kslot-e { font-size: 24px; line-height: 1; }
+.kslot-c { font-size: 12px; color: #ffaa44; font-weight: bold; margin-top: 3px; }
+.kslot-l { font-size: 10px; color: #666; margin-top: 2px; }
+
+.controls { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.controls-top { display: flex; align-items: center; gap: 10px; }
+.balance-box { font-size: 19px; font-weight: bold; color: #deff9a; }
+.balance-box small { font-size: 11px; color: #777; display: block; }
+.bet-cost-row { display: flex; align-items: center; gap: 6px; background: #1e1e28; border-radius: 10px; padding: 6px 12px; border: 1.5px solid #2e2e3e; transition: all 0.25s; }
+.bet-cost-row.sauce-on { background: #1a1028; border-color: #8833cc; }
+.cost-num { font-size: 17px; font-weight: bold; color: #fff; min-width: 44px; text-align: center; }
+.sauce-mult { font-size: 11px; font-weight: bold; color: #cc88ff; background: #2a1040; border-radius: 6px; padding: 2px 7px; display: none; }
+.sauce-mult.show { display: inline; }
+.adj-btn { background: #2a2a3a; border: 1px solid #3a3a50; color: #ccc; width: 26px; height: 26px; border-radius: 7px; cursor: pointer; font-size: 15px; font-family: inherit; display: flex; align-items: center; justify-content: center; }
+.adj-btn:hover { background: #363648; }
+.controls-bottom { display: flex; align-items: center; gap: 8px; }
+.icon-btn { background: #1e1e28; border: 1px solid #2e2e3e; color: #aaa; padding: 8px 13px; border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: bold; font-family: inherit; transition: 0.15s; white-space: nowrap; }
+.icon-btn:hover { background: #28283a; }
+.icon-btn.on { background: #0e1e10; color: #88ff88; border-color: #44aa44; }
+.icon-btn.sauce-active { background: #1e0e30; color: #cc88ff; border-color: #8833cc; }
+.icon-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.spin-wrap { margin-left: auto; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.spin-btn { background: linear-gradient(135deg,#ff5e7e,#ff3a5e); color: #fff; border: none; padding: 13px 32px; font-size: 19px; font-weight: 900; border-radius: 50px; cursor: pointer; font-family: inherit; box-shadow: 0 4px 18px rgba(255,80,100,0.4); transition: 0.1s; white-space: nowrap; }
+.spin-btn:hover { transform: scale(1.03); }
+.spin-btn:active { transform: scale(0.96); }
+.spin-btn:disabled { background: #2e2e3e; color: #555; box-shadow: none; transform: none; cursor: not-allowed; }
+#auto-counter { font-size: 11px; color: #66aaff; min-height: 14px; text-align: center; }
+.log-box { margin-top: 10px; background: #111118; border-radius: 10px; border: 1px solid #222230; padding: 6px 12px; height: 58px; overflow-y: auto; font-size: 11px; color: #777; }
+.log-box .e { padding: 1px 0; border-bottom: 1px solid #1a1a24; line-height: 1.5; }
+.log-box .e:last-child { border: none; }
+.lw{color:#7fff7f}.lf{color:#ffaa00}.lp{color:#cc88ff}.lstar{color:#ffdd44}.li{color:#66aaff}
+
+#auto-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100; align-items: center; justify-content: center; }
+#auto-modal.open { display: flex; }
+#auto-box { background: #1e1e2a; border: 1.5px solid #3a3a50; border-radius: 20px; padding: 26px; width: 320px; box-shadow: 0 20px 60px rgba(0,0,0,0.9); }
+#auto-box h3 { font-size: 15px; color: #deff9a; margin-bottom: 18px; }
+.auto-opts { display: flex; gap: 8px; margin-bottom: 16px; }
+.auto-opt { flex: 1; background: #252535; border: 1.5px solid #333348; color: #aaa; border-radius: 10px; padding: 10px 4px; text-align: center; cursor: pointer; font-size: 14px; font-weight: bold; font-family: inherit; }
+.auto-opt.sel { background: #1a3a1a; color: #7fff7f; border-color: #5f5; }
+.auto-check-row { display: flex; align-items: center; gap: 10px; background: #252530; border-radius: 10px; padding: 12px; margin-bottom: 18px; }
+.auto-check-row input { width: 18px; height: 18px; accent-color: #ffcc44; }
+.auto-check-row label { color: #ccc; font-size: 13px; display: block; }
+.auto-check-row small { color: #777; font-size: 10px; display: block; }
+#start-auto-btn { width: 100%; padding: 13px; background: #4caf50; border: none; border-radius: 12px; color: #fff; font-size: 15px; font-weight: bold; font-family: inherit; cursor: pointer; }
+.modal-close { float: right; background: none; border: none; color: #666; font-size: 18px; cursor: pointer; }
+#toast { position: fixed; top: 28px; left: 50%; transform: translateX(-50%); background: #ff5e7e; color: #fff; padding: 10px 24px; border-radius: 50px; font-size: 14px; font-weight: bold; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 200; }
+#toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="rotate-hint"><div class="icon">📱</div><div>請將手機轉為橫向<br>以獲得最佳體驗</div></div>
+<div id="scale-wrap">
+<div id="game-wrap">
+  <div id="energy-bar-wrap">
+    <div id="energy-label">🧪 魔法小醬能量</div>
+    <div id="energy-track"><div id="energy-fill"></div></div>
+    <div id="energy-pct">0%</div>
+  </div>
+  <canvas id="c" width="1020" height="390"></canvas>
+  <div class="workbench">
+    <div class="kitchen-box">
+      <div class="kitchen-title">
+        <div id="kitchen-label">🏆 熱門TOP3</div>
+        <div id="queue-badge" class="queue-badge"></div>
+      </div>
+      <div class="kitchen-slots">
+        <div class="kslot" id="ks0"><div class="kslot-l">—</div></div>
+        <div class="kslot" id="ks1"><div class="kslot-l">—</div></div>
+        <div class="kslot" id="ks2"><div class="kslot-l">—</div></div>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="controls-top">
+        <div class="balance-box"><small>籌碼</small>💰 <span id="bal-num">10,000</span></div>
+        <div class="bet-cost-row" id="bet-row">
+          <label style="font-size:11px;color:#888">出餐成本</label>
+          <button class="adj-btn" onclick="adjBet(-1)">－</button>
+          <div class="cost-num" id="cost-display">100</div>
+          <button class="adj-btn" onclick="adjBet(1)">＋</button>
+          <span class="sauce-mult" id="sauce-mult">×2</span>
+        </div>
+      </div>
+      <div class="controls-bottom">
+        <button class="icon-btn" id="sauce-btn" onclick="toggleSauce()">🧪 魔法小醬</button>
+        <button class="icon-btn" id="speed-btn" onclick="toggleSpeed()">⚡ 加速</button>
+        <button class="icon-btn" id="auto-btn" onclick="openAuto()">🔄 AUTO</button>
+        <div class="spin-wrap">
+          <button class="spin-btn" id="spin-btn" onclick="doBet()">出餐 ▶</button>
+          <div id="auto-counter"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="log-box" id="log"></div>
+</div>
+</div>
+<div id="auto-modal">
+  <div id="auto-box">
+    <button class="modal-close" onclick="closeAuto()">✕</button>
+    <h3>🔄 自動出餐設定</h3>
+    <div class="auto-opts">
+      <button class="auto-opt" data-n="20" onclick="selN(20)">20</button>
+      <button class="auto-opt" data-n="50" onclick="selN(50)">50</button>
+      <button class="auto-opt" data-n="100" onclick="selN(100)">100</button>
+      <button class="auto-opt sel" data-n="0" onclick="selN(0)">∞</button>
+    </div>
+    <label class="auto-check-row">
+      <input type="checkbox" id="turbo-check">
+      <div><label for="turbo-check">⚡ 極速模式</label><small>回合制，壽司對位客人</small></div>
+    </label>
+    <button id="start-auto-btn" onclick="startAuto()">開始自動出餐</button>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════
+// 常數
+// ══════════════════════════════
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const BELT_Y = 275, BELT_H = 54;
+const SLOT_W = W / 6;                                    // 170px
+const SLOT_XS = [0,1,2,3,4,5].map(i=>SLOT_W*i+SLOT_W/2); // 85,255,425,595,765,935
+// 槽0=購買區，槽1~5=客人
+const SEAT_XS = SLOT_XS.slice(1); // 255,425,595,765,935
+const NORMAL_SPD = 1.3, FAST_SPD = 2.5;
+const BET_LEVELS = [100,200,300,500,800,1000];
+let betIdx = 0;
+const curBet = () => BET_LEVELS[betIdx];
+
+const MENUS = {
+  100:[{e:'🥚',n:'玉子燒'},{e:'🍡',n:'豆皮壽司'},{e:'🌽',n:'玉米軍艦'},{e:'🐙',n:'章魚壽司'},{e:'🍤',n:'鮮蝦手捲'},{e:'🍬',n:'馬卡龍'}],
+  300:[{e:'🐟',n:'鮭魚卵'},{e:'🔥',n:'炙燒鮭魚'},{e:'🍗',n:'雞肉串燒'},{e:'🍮',n:'茶碗蒸'},{e:'🥗',n:'彩虹沙拉'},{e:'🎂',n:'千層蛋糕'}],
+  800:[{e:'👑',n:'招牌拼盤'},{e:'🦔',n:'海膽軍艦'},{e:'🥩',n:'和牛壽司'},{e:'🍜',n:'豚骨拉麵'},{e:'🦞',n:'龍蝦御膳'},{e:'🍨',n:'水果聖代'}],
+};
+const getMenu = b => b<=200?MENUS[100]:b<=500?MENUS[300]:MENUS[800];
+const IDLE = ['🍙','🍱','🥡','🍘','🌮','🍥'];
+
+// 客人：由左而右 有為哥 神秘客 茫茫伯 金小美 臭跩弟
+const CDEFS = [
+  {name:'有為哥', e:'😼', minO:0.1, maxO:1.5,  rate:0.45},
+  {name:'神秘客', e:'🙀', minO:0.1, maxO:10.0, rate:0.22, isMystery:true},
+  {name:'茫茫伯', e:'😴', minO:0.1, maxO:1.0,  rate:0.0,  isMang:true},
+  {name:'金小美', e:'😻', minO:0.1, maxO:4.0,  rate:0.38, isBeauty:true},
+  {name:'臭跩弟', e:'😾', minO:0.1, maxO:0.5,  rate:0.5},
+];
+
+// ══════════════════════════════
+// 狀態
+// ══════════════════════════════
+let balance = 10000, sauceOn = false, speedFast = false;
+let autoOn = false, autoN = 0, autoLeft = 0, turboOn = false, autoSelN = 0;
+let autoClearing = false;
+let customers = [], particles = [], top3 = {};
+let energyPct = 0;
+
+// 追星系統
+let starHolder = null; // {name, stars}
+let feverActive = false;
+let feverPlatesLeft = 0; // 狂熱剩餘盤數，獨立倒數
+
+// 星星請求計數器（取代starPending旗標）
+let starQueue = 0; // 累積幾把需要出星星
+
+// 輪帶（普通模式）
+// 每個壽司是獨立物件，x從左往右移動
+let belt = [];      // 所有在輪帶上的壽司
+// 投注queue：順序陣列，每把 {bet, plates:[{e,n,sauce}]}
+let betQueue = [];
+// 下一個要穿插的投注盤
+let nextBetPlate = null; // {plate, bet} | null
+// 壽司生成計時
+let spawnX = 0;       // 下一顆壽司的目標生成X（從左往右推進）
+let lastTime = 0;
+
+// 極速
+let turboPhase = 'idle'; // idle|deal|resolve|clear|fill
+let turboSlots = [];
+let turboTimer = 0;
+let fillSushis = [];
+
+// ══════════════════════════════
+// 工具
+// ══════════════════════════════
+const rand = (a,b) => Math.random()*(b-a)+a;
+const ri = (a,b) => Math.floor(rand(a,b+1));
+const pick = arr => arr[ri(0,arr.length-1)];
+const shuffle = arr => { const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=ri(0,i);[a[i],a[j]]=[a[j],a[i]];} return a; };
+
+// ══════════════════════════════
+// 能量條
+// ══════════════════════════════
+function addEnergy(v){
+  energyPct = Math.min(100, energyPct+v);
+  document.getElementById('energy-fill').style.width = energyPct+'%';
+  document.getElementById('energy-pct').textContent = Math.floor(energyPct)+'%';
+  if(energyPct>=100) triggerFG();
+}
+function triggerFG(){
+  energyPct=0;
+  document.getElementById('energy-fill').style.width='0%';
+  document.getElementById('energy-pct').textContent='0%';
+  addLog('🎉 感謝祭觸發！','lp');
+}
+
+// ══════════════════════════════
+// 追星
+// ══════════════════════════════
+function eatStar(c){
+  if(feverActive) return;
+  // 先清所有人
+  customers.forEach(x=>x.stars=0);
+  if(!starHolder){
+    starHolder={name:c.name,stars:1};
+    c.stars=1;
+    addLog(`⭐ ${c.name} 摘到第1顆星！`,'lstar');
+  } else if(starHolder.name===c.name){
+    starHolder.stars++;
+    c.stars=starHolder.stars; // 先更新顯示
+    addLog(`⭐ ${c.name} 累積第${starHolder.stars}顆星！`,'lstar');
+    if(starHolder.stars>=3){
+      // 第3顆亮起後再觸發，讓玩家看到⭐⭐⭐
+      setTimeout(()=>triggerFever(c), 200);
+      return;
+    }
+  } else {
+    addLog(`💫 ${c.name} 搶走！${starHolder.name}歸零`,'lstar');
+    starHolder={name:c.name,stars:1};
+    c.stars=1;
+  }
+}
+
+function triggerFever(c){
+  feverActive = true;
+  feverPlatesLeft = 3; // 獨立倒數
+  c.feverHost = true;
+  // stars維持3顯示，等processEat倒數
+  customers.forEach(x=>{ if(x.name===c.name) x.stars=3; });
+  addLog(`🔥🔥🔥 ${c.name} 壽司狂熱！接下來3盤×3！`,'lf');
+  spawnParticles(c.seatX, 145, 'fever');
+}
+
+function endFever(){
+  feverActive = false;
+  starHolder = null;
+  customers.forEach(c=>{ c.stars=0; c.feverHost=false; });
+  addLog('狂熱結束，重新競爭！','lf');
+}
+
+// ══════════════════════════════
+// 魔法小醬
+// ══════════════════════════════
+const isSauce = () => Math.random() < (sauceOn?1/15:1/30);
+
+// ══════════════════════════════
+// 投注
+// ══════════════════════════════
+function adjBet(d){ betIdx=Math.max(0,Math.min(BET_LEVELS.length-1,betIdx+d)); document.getElementById('cost-display').textContent=curBet(); }
+function toggleSauce(){
+  sauceOn=!sauceOn;
+  document.getElementById('sauce-btn').classList.toggle('sauce-active',sauceOn);
+  document.getElementById('bet-row').classList.toggle('sauce-on',sauceOn);
+  document.getElementById('sauce-mult').classList.toggle('show',sauceOn);
+}
+function toggleSpeed(){
+  if(autoOn)return;
+  speedFast=!speedFast;
+  document.getElementById('speed-btn').classList.toggle('on',speedFast);
+}
+const curSpd = () => speedFast ? FAST_SPD : NORMAL_SPD;
+
+function doBet(){
+  if(autoClearing){ showToast('壽司還在路上，稍等！'); return; }
+  if(betQueue.length>=20){ showToast('廚房滿了！🍣'); return; }
+  const cost = curBet()*(sauceOn?2:1);
+  if(balance<cost){ showToast('籌碼不足！'); return; }
+  balance -= cost;
+  const menu = getMenu(curBet());
+  const plates = [pick(menu),pick(menu),pick(menu)].map(p=>({...p,sauce:isSauce()}));
+  betQueue.push({bet:curBet(), plates});
+  addLog(`出餐 ${plates.map(p=>(p.sauce?'✨':'')+p.e+p.n).join('、')} (-${cost})`);
+  if(!nextBetPlate) pullNextBet();
+  requestStar(); // 每次押注請求一顆星星
+  updateUI();
+}
+
+// 從queue頭部拿出下一盤
+function pullNextBet(){
+  if(nextBetPlate) return; // 已有待出盤
+  while(betQueue.length>0){
+    const q = betQueue[0];
+    if(q.plates.length===0){ betQueue.shift(); continue; }
+    const p = q.plates.shift();
+    nextBetPlate = {plate:p, bet:q.bet};
+    if(q.plates.length===0) betQueue.shift();
+    return;
+  }
+  nextBetPlate = null;
+}
+
+// ══════════════════════════════
+// 輪帶生成（普通模式）
+// ══════════════════════════════
+// 每隔SLOT_W=170px生成一顆壽司
+// 壽司類型決定順序：
+//   每3顆一組：待機、待機/星星、投注
+//   這樣投注盤永遠被待機包夾，不會連續
+let slotCounter = 0; // 0,1,2循環
+ // 這組是否要放星星
+
+function spawnNext(){
+  const type = slotCounter % 3;
+  slotCounter++;
+  // type2 = 投注槽，type1 = 星星槽，type0 = 待機槽
+  // 只有有料才出，否則退回待機
+  if(type===2 && nextBetPlate){
+    const item = nextBetPlate;
+    nextBetPlate = null;
+    pullNextBet(); // 同步拉下一盤
+    return {x:0, idle:false, isStar:false, plate:item.plate, active:true, checked:new Set()};
+  } else if(type===1 && starQueue>0 && !feverActive){
+    starQueue = Math.max(0, starQueue-1);
+    return {x:0, idle:false, isStar:true, plate:{e:'⭐',n:'星星壽司'}, active:true, checked:new Set()};
+  } else {
+    return {x:0, idle:true, e:pick(IDLE), active:true, checked:new Set()};
+  }
+}
+
+// 每次押注時設定starPending（下個第2顆槽位放星星）
+function requestStar(){
+  if(feverActive) return;
+  if(belt.some(s=>s.isStar&&s.active)) return; // 輪帶上已有星星
+  
+}
+
+// ══════════════════════════════
+// 客人初始化
+// ══════════════════════════════
+function initCustomers(){
+  customers = CDEFS.map((d,i)=>({
+    ...d, seatX:SEAT_XS[i],
+    stars:0, feverHost:false,
+    eatAnim:0, feverPulse:0,
+    popup:null, popupTimer:0, popupBig:false,
+    sleeping:d.isMang, sleepTimer:d.isMang?ri(300,900):0, awakeTimer:0,
+    eatRate:d.rate,
+  }));
+}
+
+// ══════════════════════════════
+// 預填輪帶
+// ══════════════════════════════
+function prefill(){
+  // 生成剛好6顆待機壽司填滿可見區
+  for(let i=0;i<6;i++){
+    belt.push({x:SLOT_XS[i], idle:true, e:pick(IDLE), active:true, checked:new Set()});
+  }
+  spawnX = SLOT_XS[5] + SLOT_W; // 下次生成位置在最右側外
+}
+
+// ══════════════════════════════
+// 碰撞結算
+// ══════════════════════════════
+function processEat(c, plate){
+  const baseMult = rand(c.minO, c.maxO);
+  const baseEarn = Math.round(curBet() * baseMult);
+  const wasFever = feverActive;
+  const earn = wasFever ? baseEarn*3 : baseEarn;
+
+  balance += earn;
+  if(plate&&plate.n) top3[plate.n]=(top3[plate.n]||0)+1;
+
+  if(plate&&plate.sauce){
+    const g = c.isBeauty||c.isMystery ? 18 : 8;
+    addEnergy(g); spawnParticles(c.seatX,145,'sauce');
+    addLog(`✨ 小醬！能量+${g}%`,'lp');
+  }
+
+  // 設popup（先設再判斷endFever）
+  if(wasFever){
+    c.popup = `${baseEarn} ×3`;
+    c.popupBig = true;
+    c.popupTimer = 95; c.eatAnim = 45; // 先設再倒數
+    addLog(`${c.e}${c.name} 🔥 ${baseEarn}×3=+${earn}`,'lf');
+    // 獨立倒數feverPlatesLeft
+    feverPlatesLeft--;
+    // 更新星星顯示（從3倒數）
+    customers.forEach(x=>{ if(x.feverHost) x.stars=feverPlatesLeft; });
+    if(feverPlatesLeft<=0) endFever();
+  } else {
+    c.popup = earn>=curBet() ? `✨+${earn}` : `+${earn}`;
+    c.popupBig = false;
+    addLog(`${c.e}${c.name} ×${baseMult.toFixed(1)} (+${earn})`, earn>=curBet()?'lw':'');
+  }
+  if(!wasFever){ // wasFever時已在上面設定
+    c.popupTimer = 95;
+    c.eatAnim = 45;
+  }
+  updateUI();
+}
+
+// ══════════════════════════════
+// AUTO
+// ══════════════════════════════
+function openAuto(){
+  if(betQueue.length>0){ showToast('請等備餐出完再開AUTO'); return; }
+  document.getElementById('auto-modal').classList.add('open');
+}
+function closeAuto(){ document.getElementById('auto-modal').classList.remove('open'); }
+function selN(n){
+  autoSelN=n;
+  document.querySelectorAll('.auto-opt').forEach(b=>b.classList.toggle('sel',parseInt(b.dataset.n)===n));
+}
+function startAuto(){
+  turboOn = document.getElementById('turbo-check').checked;
+  autoN = autoSelN; autoLeft = autoN===0?Infinity:autoN;
+  autoOn = true; speedFast = false;
+  document.getElementById('speed-btn').classList.remove('on');
+  closeAuto();
+  addLog(`🔄 AUTO (${autoN===0?'∞':autoN}把)${turboOn?' ⚡極速':''}`,'li');
+  if(turboOn){ turboPhase='idle'; turboNext(); }
+  else schedAuto();
+  updateUI();
+}
+function stopAuto(){
+  autoOn=false; turboOn=false; turboPhase='idle'; turboSlots=[];
+  const betOnBelt = belt.filter(s=>!s.idle&&!s.isStar&&s.active);
+  if(betOnBelt.length>0||nextBetPlate||betQueue.length>0){
+    autoClearing=true;
+    addLog('AUTO停止，等待剩餘結算...','li');
+  } else {
+    addLog('AUTO停止','li');
+  }
+  updateUI();
+}
+function schedAuto(){
+  if(!autoOn||turboOn)return;
+  if(autoLeft<=0){ autoOn=false; autoClearing=true; addLog('AUTO最後一把已出','li'); updateUI(); return; }
+  doAutoBet();
+  if(autoN!==0) autoLeft--;
+  setTimeout(schedAuto, 1800);
+}
+function doAutoBet(){
+  const cost=curBet()*(sauceOn?2:1);
+  if(balance<cost){ showToast('籌碼不足，AUTO停止'); stopAuto(); return; }
+  balance-=cost;
+  const menu=getMenu(curBet());
+  const plates=[pick(menu),pick(menu),pick(menu)].map(p=>({...p,sauce:isSauce()}));
+  betQueue.push({bet:curBet(),plates});
+  if(!nextBetPlate) pullNextBet();
+  requestStar();
+  updateUI();
+}
+
+// ══════════════════════════════
+// 極速
+// ══════════════════════════════
+function turboNext(){
+  if(!autoOn||!turboOn)return;
+  if(autoLeft<=0){ autoOn=false; autoClearing=true; addLog('AUTO最後一把已出','li'); updateUI(); return; }
+  const cost=curBet()*(sauceOn?2:1);
+  if(balance<cost){ showToast('籌碼不足，AUTO停止'); stopAuto(); return; }
+  balance-=cost; if(autoN!==0) autoLeft--;
+  const menu=getMenu(curBet());
+  const bPlates=[pick(menu),pick(menu),pick(menu)].map(p=>({...p,sauce:isSauce()}));
+  // 槽0=購買區待機，槽1~5隨機3押注+1星+1待機
+  const sh=shuffle([1,2,3,4,5]);
+  const bSlots=sh.slice(0,3), starSlot=sh[3];
+  turboSlots=[0,1,2,3,4,5].map(i=>({
+    x:-70-i*55, targetX:SLOT_XS[i],
+    isBet:bSlots.includes(i), isStar:i===starSlot,
+    plate:bSlots.includes(i)?bPlates.shift():i===starSlot?{e:'⭐',n:'星星壽司'}:{e:pick(IDLE),n:''},
+    idle:i===0||(!bSlots.includes(i)&&i!==starSlot),
+    active:true, eaten:false, checked:new Set(),
+  }));
+  turboPhase='deal'; turboTimer=0;
+  addLog(`[極速] (-${cost})`); updateUI();
+}
+
+// ══════════════════════════════
+// 主更新
+// ══════════════════════════════
+function update(dt){
+  if(turboOn&&autoOn) updateTurbo(dt);
+  else updateNormal(dt);
+  updateMang(dt);
+  updateClearCheck();
+  customers.forEach(c=>{
+    if(c.eatAnim>0) c.eatAnim--;
+    if(c.feverPulse>0) c.feverPulse--;
+    if(c.popupTimer>0) c.popupTimer--;
+  });
+  particles=particles.filter(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.15;p.life-=dt;return p.life>0;});
+}
+
+function updateNormal(dt){
+  const spd=curSpd(), px=spd*dt*60;
+  // 移動所有壽司
+  belt.forEach(s=>s.x+=px);
+  // 從左側補充：找出最左邊的壽司，若它的x > -SLOT_W*0.5 就補一顆
+  const leftmostX = belt.length>0 ? Math.min(...belt.map(b=>b.x)) : W;
+  if(leftmostX > -SLOT_W*0.1){
+    const s = spawnNext();
+    s.x = leftmostX - SLOT_W;
+    belt.unshift(s);
+  }
+  // 移除超出右側
+  belt = belt.filter(s=>s.x<W+SLOT_W);
+
+  // 碰撞判定（左到右）
+  const sortedC = [...customers].sort((a,b)=>a.seatX-b.seatX);
+  belt.forEach(s=>{
+    if(!s.active) return;
+    for(const c of sortedC){
+      if(s.checked.has(c.name)) continue;
+      if(Math.abs(s.x-c.seatX)>px*2+6) continue;
+      s.checked.add(c.name);
+      if(s.isStar){
+        if(c.sleeping) continue;
+        if(Math.random()>0.80) continue;
+        s.active=false; eatStar(c); c.eatAnim=35; break;
+      }
+      if(s.idle) continue;
+      if(c.sleeping) continue;
+      if(Math.random()>c.eatRate*(sauceOn?1.15:1)) continue;
+      s.active=false; processEat(c,s.plate); break;
+    }
+  });
+  belt = belt.filter(s=>s.active||s.x<W);
+}
+
+function updateTurbo(dt){
+  if(turboPhase==='idle') return;
+  if(turboPhase==='deal'){
+    turboTimer+=dt;
+    let done=true;
+    turboSlots.forEach(s=>{ if(s.x<s.targetX){ s.x=Math.min(s.targetX,s.x+2800*dt); if(s.x<s.targetX)done=false; } });
+    if(done||turboTimer>0.5){
+      turboSlots.forEach(s=>s.x=s.targetX);
+      // 左到右碰撞
+      [...turboSlots].sort((a,b)=>a.targetX-b.targetX).forEach(s=>{
+        if(s.idle||s.eaten) return;
+        const c=customers.find(cu=>Math.abs(cu.seatX-s.targetX)<SLOT_W*0.55);
+        if(!c||s.checked.has(c.name)) return;
+        s.checked.add(c.name);
+        if(c.sleeping) return;
+        if(s.isStar){
+          if(Math.random()>0.80) return;
+          s.eaten=true; s.active=false; eatStar(c); c.eatAnim=35;
+        } else if(s.isBet){
+          if(Math.random()>c.eatRate*(sauceOn?1.15:1)) return;
+          s.eaten=true; s.active=false; processEat(c,s.plate);
+        }
+      });
+      turboPhase='resolve'; turboTimer=1.4;
+    }
+  } else if(turboPhase==='resolve'){
+    turboTimer-=dt;
+    if(turboTimer<=0){ turboPhase='clear'; turboTimer=0.35; }
+  } else if(turboPhase==='clear'){
+    turboTimer-=dt;
+    turboSlots.forEach(s=>{ if(!s.eaten) s.x+=3000*dt; });
+    if(turboTimer<=0){
+      turboSlots=[]; turboPhase='fill'; fillSushis=[];
+      const n=ri(3,6);
+      for(let i=0;i<n;i++) fillSushis.push({x:-60-i*90,e:pick(IDLE)});
+      fillTimer=0.8;
+    }
+  } else if(turboPhase==='fill'){
+    fillTimer-=dt;
+    fillSushis.forEach(s=>s.x+=NORMAL_SPD*dt*60*2);
+    fillSushis=fillSushis.filter(s=>s.x<W+80);
+    if(fillTimer<=0){ fillSushis=[]; turboPhase='idle'; if(autoOn&&turboOn) setTimeout(turboNext,80); }
+  }
+}
+let fillTimer=0;
+
+function updateMang(dt){
+  const m=customers.find(c=>c.isMang); if(!m) return;
+  const px=curSpd()*dt*60;
+  if(m.sleeping){ m.sleepTimer-=px; if(m.sleepTimer<=0){ m.sleeping=false; m.eatRate=0.88; m.awakeTimer=ri(200,500); m.popup='👁 掃盤！'; m.popupTimer=80; m.popupBig=false; addLog('茫茫伯醒來！','li'); } }
+  else { m.awakeTimer-=px; if(m.awakeTimer<=0){ m.sleeping=true; m.eatRate=0; m.sleepTimer=ri(300,900); m.popup='💤'; m.popupTimer=60; m.popupBig=false; } }
+}
+
+function updateClearCheck(){
+  if(!autoClearing) return;
+  const busy = belt.some(s=>!s.idle&&!s.isStar&&s.active) || nextBetPlate || betQueue.length>0;
+  if(!busy){ autoClearing=false; addLog('結算完成','li'); updateUI(); }
+}
+
+// ══════════════════════════════
+// UI
+// ══════════════════════════════
+function updateUI(){
+  document.getElementById('bal-num').textContent=Math.floor(balance).toLocaleString();
+  updateKitchen(); updateBtns();
+  const ctr=document.getElementById('auto-counter');
+  if(autoOn&&autoN!==0&&isFinite(autoLeft)) ctr.textContent=`AUTO ×${autoLeft}`;
+  else if(autoOn) ctr.textContent='AUTO ∞';
+  else ctr.textContent='';
+}
+function updateBtns(){
+  const qLen=betQueue.length+(nextBetPlate?1:0);
+  const spinBtn=document.getElementById('spin-btn');
+  const autoBtn=document.getElementById('auto-btn');
+  if(autoOn){
+    spinBtn.textContent='停止 AUTO'; spinBtn.disabled=false; spinBtn.onclick=stopAuto;
+    autoBtn.disabled=true;
+  } else if(autoClearing){
+    spinBtn.textContent='出餐 ▶'; spinBtn.disabled=true; spinBtn.onclick=doBet;
+    autoBtn.disabled=true;
+  } else {
+    spinBtn.textContent='出餐 ▶'; spinBtn.onclick=doBet;
+    spinBtn.disabled=qLen>=20;
+    autoBtn.disabled=qLen>0;
+  }
+}
+function updateKitchen(){
+  const qLen=betQueue.length;
+  const badge=document.getElementById('queue-badge');
+  if(qLen>0){
+    document.getElementById('kitchen-label').textContent='🍳 後場備餐';
+    badge.style.display='inline'; badge.textContent='×'+qLen;
+    // 同注額合併顯示
+    const merged=[];
+    betQueue.forEach(q=>{ const f=merged.find(m=>m.bet===q.bet); if(f)f.count++; else merged.push({bet:q.bet,count:1,e:q.plates[0]?.e||'🍣'}); });
+    for(let i=0;i<3;i++){
+      const el=document.getElementById('ks'+i);
+      if(merged[i]){ el.className='kslot has-q'; el.innerHTML=`<div class="kslot-e">${merged[i].e}</div><div class="kslot-c">×${merged[i].count}</div><div class="kslot-l">${merged[i].bet}</div>`; }
+      else { el.className='kslot'; el.innerHTML='<div class="kslot-l">—</div>'; }
+    }
+  } else {
+    document.getElementById('kitchen-label').textContent='🏆 熱門TOP3';
+    badge.style.display='none';
+    const sorted=Object.entries(top3).sort((a,b)=>b[1]-a[1]).slice(0,3);
+    for(let i=0;i<3;i++){
+      const el=document.getElementById('ks'+i);
+      if(sorted[i]){ const[n]=sorted[i]; let em='🍣'; for(const m of Object.values(MENUS)){const f=m.find(x=>x.n===n);if(f){em=f.e;break;}} el.className='kslot'; el.innerHTML=`<div class="kslot-e">${em}</div><div class="kslot-l">${n}</div>`; }
+      else { el.className='kslot'; el.innerHTML='<div class="kslot-l">—</div>'; }
+    }
+  }
+}
+function showToast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
+
+// ══════════════════════════════
+// 繪製
+// ══════════════════════════════
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#0d0d14'; ctx.fillRect(0,0,W,H);
+  drawBelt();
+  drawCustomers();
+  if(turboOn&&autoOn){ drawFill(); drawTurbo(); }
+  else drawBeltSushis();
+  drawParticles();
+}
+
+function drawBelt(){
+  ctx.fillStyle='#1c1c26'; ctx.fillRect(0,BELT_Y-BELT_H/2,W,BELT_H);
+  ctx.strokeStyle='#28283a'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(0,BELT_Y-BELT_H/2); ctx.lineTo(W,BELT_Y-BELT_H/2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,BELT_Y+BELT_H/2); ctx.lineTo(W,BELT_Y+BELT_H/2); ctx.stroke();
+  // 滾動紋路
+  const spd=turboOn&&autoOn?6:curSpd();
+  const t=(performance.now()*0.001*spd*20)%SLOT_W;
+  ctx.strokeStyle='#222232'; ctx.lineWidth=1;
+  for(let x=(t%SLOT_W)-SLOT_W;x<W+SLOT_W;x+=SLOT_W){
+    ctx.beginPath(); ctx.moveTo(x,BELT_Y-BELT_H/2+8); ctx.lineTo(x,BELT_Y+BELT_H/2-8); ctx.stroke();
+  }
+  // 山洞
+  ['left','right'].forEach(side=>{
+    const cx=side==='left'?0:W;
+    ctx.fillStyle='#0d0d14';
+    ctx.beginPath();
+    if(side==='left') ctx.ellipse(cx,BELT_Y,55,BELT_H/2+4,0,Math.PI*1.5,Math.PI*0.5);
+    else ctx.ellipse(cx,BELT_Y,55,BELT_H/2+4,0,Math.PI*0.5,Math.PI*1.5);
+    ctx.fill();
+    ctx.strokeStyle='#2a2a3a'; ctx.lineWidth=2; ctx.stroke();
+  });
+  // 極速槽位線
+  if(turboOn&&autoOn){
+    ctx.strokeStyle='#2a2a3e'; ctx.lineWidth=1; ctx.setLineDash([3,7]);
+    for(let i=1;i<6;i++){ ctx.beginPath(); ctx.moveTo(SLOT_W*i,BELT_Y-BELT_H/2); ctx.lineTo(SLOT_W*i,BELT_Y+BELT_H/2); ctx.stroke(); }
+    ctx.setLineDash([]);
+  }
+}
+
+function drawCustomers(){
+  customers.forEach(c=>{
+    const x=c.seatX, by=145;
+    // 狂熱光暈
+    if(feverActive&&c.feverHost){
+      const pulse=0.15+Math.sin(performance.now()*0.006)*0.08;
+      const g=ctx.createRadialGradient(x,by,8,x,by,58);
+      g.addColorStop(0,`rgba(255,140,0,${pulse})`); g.addColorStop(1,'rgba(255,140,0,0)');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,by,58,0,Math.PI*2); ctx.fill();
+    }
+    const bounce=c.eatAnim>0?Math.sin(c.eatAnim/45*Math.PI)*9:0;
+    let em=c.e;
+    if(c.eatAnim>22)em='😋';
+    if(c.sleeping)em='😴';
+    if(feverActive&&c.feverHost)em='🤩';
+    ctx.font='44px Arial'; ctx.textAlign='center';
+    ctx.fillText(em,x,by-bounce);
+    ctx.font='bold 13px "Microsoft JhengHei"'; ctx.fillStyle='#bbb';
+    ctx.fillText(c.name,x,by+28);
+    // 星星顯示
+    ctx.save();
+    if(feverActive&&c.feverHost){
+      const left=Math.max(0,feverPlatesLeft);
+      ctx.font='bold 15px Arial'; ctx.fillStyle='#ff8800';
+      ctx.shadowColor='#ffaa00'; ctx.shadowBlur=8;
+      ctx.fillText('⭐'.repeat(left)+'☆'.repeat(3-left),x,by+47);
+    } else if(c.stars>0){
+      ctx.font=c.stars===2?'bold 16px Arial':'14px Arial';
+      ctx.fillStyle=c.stars===2?(Math.sin(performance.now()*0.008)>0?'#ffee44':'#ffaa00'):'#ffdd44';
+      ctx.fillText('⭐'.repeat(c.stars)+'☆'.repeat(3-c.stars),x,by+47);
+    } else {
+      ctx.font='13px Arial'; ctx.fillStyle='#333'; ctx.fillText('☆☆☆',x,by+47);
+    }
+    ctx.restore();
+    if(c.isMang){ ctx.font='12px Arial'; ctx.fillStyle=c.sleeping?'#444':'#00ffaa'; ctx.fillText(c.sleeping?'💤':'👁',x,by+64); }
+    // 虛線
+    ctx.strokeStyle='#222232'; ctx.lineWidth=1; ctx.setLineDash([3,5]);
+    ctx.beginPath(); ctx.moveTo(x,by+72); ctx.lineTo(x,BELT_Y-BELT_H/2); ctx.stroke();
+    ctx.setLineDash([]);
+    // popup
+    if(c.popupTimer>0){
+      const a=Math.min(1,c.popupTimer/16);
+      const rise=(95-c.popupTimer)*0.5;
+      ctx.save(); ctx.globalAlpha=a;
+      if(c.popupBig){
+        ctx.font='bold 24px "Microsoft JhengHei"'; ctx.fillStyle='#ff7700';
+        ctx.shadowColor='#ffaa00'; ctx.shadowBlur=12;
+        ctx.fillText(c.popup,x,by-50-rise);
+      } else {
+        ctx.font='bold 15px "Microsoft JhengHei"'; ctx.fillStyle='#deff9a';
+        ctx.fillText(c.popup,x,by-52-rise);
+      }
+      ctx.restore();
+    }
+  });
+}
+
+function drawSushi(x,y,s){
+  ctx.save();
+  if(s.idle){
+    ctx.globalAlpha=0.36;
+    ctx.beginPath(); ctx.ellipse(x,y+10,19,7,0,0,Math.PI*2);
+    ctx.fillStyle='#252530'; ctx.strokeStyle='#303042'; ctx.lineWidth=1; ctx.fill(); ctx.stroke();
+    ctx.font='22px Arial'; ctx.textAlign='center'; ctx.fillStyle='#fff';
+    ctx.fillText(s.e||'🍙',x,y+5);
+  } else if(s.isStar){
+    const t=performance.now()*0.004;
+    const g=ctx.createRadialGradient(x,y+5,3,x,y+5,36);
+    g.addColorStop(0,'rgba(255,220,50,0.4)'); g.addColorStop(1,'rgba(255,180,0,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(x,y+5,36,17,0,0,Math.PI*2); ctx.fill();
+    for(let i=0;i<5;i++){
+      const a=t+i*Math.PI*0.4;
+      ctx.beginPath(); ctx.arc(x+Math.cos(a)*20,y+5+Math.sin(a)*8,2.5,0,Math.PI*2);
+      ctx.fillStyle=`rgba(255,240,100,${0.7+Math.sin(t+i)*0.3})`; ctx.fill();
+    }
+    ctx.beginPath(); ctx.ellipse(x,y+12,26,8,0,0,Math.PI*2);
+    ctx.fillStyle='#3a2800'; ctx.strokeStyle='#ffdd33'; ctx.lineWidth=2.5; ctx.fill(); ctx.stroke();
+    ctx.font='28px Arial'; ctx.textAlign='center'; ctx.fillText('⭐',x,y+5);
+    ctx.font='bold 8px Arial'; ctx.fillStyle='#ffdd33'; ctx.fillText('STAR',x,y+22);
+  } else {
+    const plate=s.plate;
+    if(plate?.sauce){
+      const t=performance.now()*0.003;
+      const pg=ctx.createRadialGradient(x,y+5,2,x,y+5,40);
+      pg.addColorStop(0,'rgba(180,80,255,0.35)'); pg.addColorStop(1,'rgba(100,0,200,0)');
+      ctx.fillStyle=pg; ctx.beginPath(); ctx.ellipse(x,y+5,40,18,0,0,Math.PI*2); ctx.fill();
+      for(let i=0;i<4;i++){
+        const a=t+i*Math.PI/2;
+        ctx.beginPath(); ctx.arc(x+Math.cos(a)*22,y+5+Math.sin(a)*9,2,0,Math.PI*2);
+        ctx.fillStyle=`rgba(220,150,255,${0.6+Math.sin(t+i)*0.4})`; ctx.fill();
+      }
+    }
+    if(feverActive){
+      const fg=ctx.createRadialGradient(x,y+6,4,x,y+6,38);
+      fg.addColorStop(0,'rgba(255,140,0,0.3)'); fg.addColorStop(1,'rgba(255,140,0,0)');
+      ctx.fillStyle=fg; ctx.beginPath(); ctx.ellipse(x,y+6,38,18,0,0,Math.PI*2); ctx.fill();
+    }
+    const g=ctx.createRadialGradient(x,y+6,4,x,y+6,36);
+    g.addColorStop(0,'rgba(255,175,55,0.22)'); g.addColorStop(1,'rgba(255,175,55,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(x,y+6,36,17,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x,y+12,28,8,0,0,Math.PI*2);
+    ctx.fillStyle='#3a1800';
+    ctx.strokeStyle=plate?.sauce?'#cc66ff':feverActive?'#ffaa00':'#ffaa33';
+    ctx.lineWidth=2.5; ctx.fill(); ctx.stroke();
+    ctx.font='32px Arial'; ctx.textAlign='center'; ctx.fillStyle='#fff';
+    ctx.fillText(plate?.e||'🍣',x,y+5);
+    ctx.font='bold 9px Arial';
+    ctx.fillStyle=plate?.sauce?'#cc88ff':feverActive?'#ffaa00':'#ffcc44';
+    ctx.fillText(plate?.sauce?'SAUCE':feverActive?'×3':'BET',x,y+23);
+  }
+  ctx.restore();
+}
+
+function drawBeltSushis(){ belt.forEach(s=>{ if(!s.active||s.x>W+80||s.x<-80) return; drawSushi(s.x,BELT_Y,s); }); }
+function drawTurbo(){ turboSlots.forEach(s=>{ if(s.x>W+90) return; drawSushi(s.x,BELT_Y,s); }); }
+function drawFill(){ fillSushis.forEach(s=>{ ctx.save(); ctx.globalAlpha=0.32; ctx.font='22px Arial'; ctx.textAlign='center'; ctx.fillText(s.e,s.x,BELT_Y+5); ctx.restore(); }); }
+function drawParticles(){ particles.forEach(p=>{ ctx.save(); ctx.globalAlpha=Math.max(0,p.life); ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fillStyle=p.color; ctx.fill(); ctx.restore(); }); }
+
+function spawnParticles(x,y,type){
+  const n=type==='fever'?20:12;
+  for(let i=0;i<n;i++){
+    particles.push({x,y,vx:rand(-3,3),vy:rand(-5,-1),life:rand(0.6,type==='fever'?1.8:1.2),
+      color:type==='sauce'?`hsl(${ri(270,310)},90%,${ri(65,85)}%)`:type==='fever'?`hsl(${ri(20,50)},100%,${ri(55,75)}%)`:`hsl(${ri(40,60)},100%,60%)`,
+      size:rand(type==='fever'?4:3,type==='fever'?9:6)});
+  }
+}
+
+function addLog(msg,cls=''){
+  const box=document.getElementById('log');
+  const d=document.createElement('div'); d.className='e '+cls; d.textContent=msg;
+  box.insertBefore(d,box.firstChild);
+  while(box.children.length>30) box.removeChild(box.lastChild);
+}
+
+// ══════════════════════════════
+// 響應式
+// ══════════════════════════════
+function fitScreen(){
+  const p=window.innerHeight>window.innerWidth;
+  document.getElementById('rotate-hint').style.display=p?'flex':'none';
+  document.getElementById('scale-wrap').style.display=p?'none':'block';
+  if(!p){ const s=Math.min(1,(window.innerWidth-8)/1060); const w=document.getElementById('scale-wrap'); w.style.transform=`scale(${s})`; w.style.marginBottom=`${(s-1)*700}px`; }
+}
+
+// ══════════════════════════════
+// 啟動
+// ══════════════════════════════
+initCustomers();
+prefill();
+updateUI(); fitScreen();
+window.addEventListener('resize',fitScreen);
+window.addEventListener('orientationchange',()=>setTimeout(fitScreen,200));
+addLog('🍣 喵壽司開張！','li');
+
+// doBet時也請求星星
+const _origDoBet = doBet;
+// 在doBet末尾加requestStar（已在doBet裡直接呼叫）
+
+function loop(ts){
+  const dt=Math.min((ts-lastTime)/1000,0.05); lastTime=ts;
+  update(dt); draw(); requestAnimationFrame(loop);
+}
+requestAnimationFrame(t=>{ lastTime=t; requestAnimationFrame(loop); });
+</script>
+</body>
+</html>
